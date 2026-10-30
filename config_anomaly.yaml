@@ -1,0 +1,55 @@
+# AI-Powered Network Intrusion Detection System (NIDS) -- anomaly variant
+#
+# Trains an IsolationForest on NORMAL traffic only (one-class anomaly
+# detection). Supervised classifiers learn attack fingerprints, but the
+# NSL-KDD test set contains novel attack types -- and stealthy categories
+# (R2L, U2R) that look like legitimate traffic are nearly invisible to the
+# supervised models (recall ~0.00/0.01). An anomaly model flags whatever
+# deviates from "normal", which is exactly the right tool for that gap.
+#
+# Artifacts are kept separate so all three models can coexist:
+#   models/nids_rf.joblib            -- binary supervised
+#   models/nids_rf_multiclass.joblib -- 5-class supervised
+#   models/nids_iforest.joblib       -- anomaly (this config)
+#
+# Usage:
+#     .venv/bin/python -m src.train_anomaly --config config_anomaly.yaml
+#     .venv/bin/python -m src.detect --config config_anomaly.yaml --input flows.csv
+
+project: ai-network-intrusion-detection
+version: 0.2.0
+
+data:
+  nsl_kdd_train_url: "https://raw.githubusercontent.com/defcom17/NSL_KDD/master/KDDTrain+.txt"
+  nsl_kdd_test_url: "https://raw.githubusercontent.com/defcom17/NSL_KDD/master/KDDTest+.txt"
+  train_path: "data/KDDTrain+.txt"
+  test_path: "data/KDDTest+.txt"
+  use_synthetic_fallback: true
+  synthetic_n_train: 20000
+  synthetic_n_test: 5000
+  random_state: 42
+
+features:
+  categorical: ["protocol_type", "service", "flag"]
+  label_col: "label"
+  drop_cols: ["difficulty"]        # NSL-KDD bookkeeping column, not a feature
+  binary_labels: true             # ground truth for evaluation; training uses normal only
+
+model:
+  type: "isolation_forest"
+  n_estimators: 200
+  max_samples: 256               # IF's recommended default; sub-sample per tree
+  random_state: 42
+  n_jobs: -1
+  # Detection threshold is calibrated, not fixed: score cutoff at the
+  # `calibration_fpr` quantile of normal-train scores (e.g. 0.05 => expect
+  # ~5% of normal traffic to raise alerts at this setting).
+  calibration_fpr: 0.05
+
+paths:
+  model_dir: "models"
+  model_file: "models/nids_iforest.joblib"
+  reports_dir: "reports/anomaly"
+
+detection:
+  batch_size: 10000

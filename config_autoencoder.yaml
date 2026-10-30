@@ -1,0 +1,54 @@
+# AI-Powered Network Intrusion Detection System (NIDS) -- autoencoder variant
+#
+# A deeper alternative to the IsolationForest anomaly detector: an MLP
+# autoencoder trained to reconstruct NORMAL traffic only. Flows it cannot
+# reconstruct well (high MSE) are flagged as anomalous. Same bundle format
+# as the IsolationForest model, so it plugs into detect.py / app.py with
+# --anomaly-model models/nids_autoencoder.joblib and no code changes.
+#
+# Usage:
+#     .venv/bin/python -m src.train_autoencoder --config config_autoencoder.yaml
+
+project: ai-network-intrusion-detection
+version: 0.3.0
+
+data:
+  nsl_kdd_train_url: "https://raw.githubusercontent.com/defcom17/NSL_KDD/master/KDDTrain+.txt"
+  nsl_kdd_test_url: "https://raw.githubusercontent.com/defcom17/NSL_KDD/master/KDDTest+.txt"
+  train_path: "data/KDDTrain+.txt"
+  test_path: "data/KDDTest+.txt"
+  use_synthetic_fallback: true
+  synthetic_n_train: 20000
+  synthetic_n_test: 5000
+  random_state: 42
+
+features:
+  categorical: ["protocol_type", "service", "flag"]
+  label_col: "label"
+  drop_cols: ["difficulty"]
+  binary_labels: true
+
+model:
+  type: "mlp_autoencoder"
+  # Bottleneck autoencoder: 120-ish input features -> 64 -> 32 -> 64 -> out.
+  hidden_layer_sizes: [64, 32, 64]
+  activation: "relu"
+  solver: "adam"
+  max_iter: 150
+  early_stopping: true
+  validation_fraction: 0.1
+  n_iter_no_change: 10
+  random_state: 42
+  # MLP training is the slow part; subsample normal traffic for fit.
+  train_subsample: 20000
+  # Threshold calibrated like the IsolationForest: cutoff at the
+  # `calibration_fpr` quantile of normal-train reconstruction errors.
+  calibration_fpr: 0.05
+
+paths:
+  model_dir: "models"
+  model_file: "models/nids_autoencoder.joblib"
+  reports_dir: "reports/autoencoder"
+
+detection:
+  batch_size: 10000

@@ -1,0 +1,53 @@
+# AI-Powered Network Intrusion Detection System (NIDS)
+
+project: ai-network-intrusion-detection
+version: 0.1.0
+
+data:
+  # Public NSL-KDD mirrors (downloaded on first run via data/download_nsl_kdd.py)
+  nsl_kdd_train_url: "https://raw.githubusercontent.com/defcom17/NSL_KDD/master/KDDTrain+.txt"
+  nsl_kdd_test_url: "https://raw.githubusercontent.com/defcom17/NSL_KDD/master/KDDTest+.txt"
+  train_path: "data/KDDTrain+.txt"
+  test_path: "data/KDDTest+.txt"
+  # If the real dataset can't be downloaded, fall back to synthetic data
+  # so the pipeline always runs end to end.
+  use_synthetic_fallback: true
+  synthetic_n_train: 20000
+  synthetic_n_test: 5000
+  random_state: 42
+
+features:
+  categorical: ["protocol_type", "service", "flag"]
+  label_col: "label"
+  drop_cols: ["difficulty"]        # NSL-KDD bookkeeping column, not a feature
+  binary_labels: true             # true -> {normal: 0, attack: 1}; false -> multiclass
+
+model:
+  type: "random_forest"
+  n_estimators: 150
+  max_depth: 25
+  min_samples_split: 2
+  random_state: 42
+  n_jobs: -1
+  class_weight: "balanced_subsample"
+
+paths:
+  model_dir: "models"
+  model_file: "models/nids_rf.joblib"
+  reports_dir: "reports"
+
+detection:
+  alert_threshold: 0.70          # P(attack) at/above this raises an alert
+  batch_size: 10000
+
+ensemble:
+  # Ensemble = supervised RandomForest (known patterns) + IsolationForest
+  # anomaly detector (novel / stealthy activity) as a second opinion.
+  supervised_model: "models/nids_rf.joblib"
+  anomaly_model: "models/nids_iforest.joblib"
+  supervised_threshold: 0.50    # P(attack) at/above this counts as a supervised hit
+  anomaly_threshold: null       # null -> use the calibrated threshold saved in the anomaly bundle
+  rule: "either"                # either | both | supervised | anomaly
+  # Ranking heuristic for the combined alert list: max(sup_proba,
+  # sigmoid(anomaly_score - threshold)). Monotonic and documented as a
+  # ranking aid, not a probability.

@@ -1,0 +1,28 @@
+# Data (large, downloadable)
+data/KDDTrain+.txt
+data/KDDTest+.txt
+data/*.csv
+data/*.pkl
+
+# Trained models
+models/*.joblib
+models/*.pkl
+
+# Reports
+reports/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+
+# Streamlit
+.streamlit/
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/

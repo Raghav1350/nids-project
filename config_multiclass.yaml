@@ -1,0 +1,47 @@
+# AI-Powered Network Intrusion Detection System (NIDS) -- multiclass variant
+#
+# Trains the same RandomForest pipeline, but with the label mapped to the
+# 5 NSL-KDD attack categories (normal / dos / probe / r2l / u2r) instead of
+# a binary normal-vs-attack label. Artifacts are kept separate from the
+# binary model so the two can coexist.
+#
+# Usage:
+#     .venv/bin/python -m src.train --config config_multiclass.yaml
+#     .venv/bin/python -m src.detect --config config_multiclass.yaml --input flows.csv
+
+project: ai-network-intrusion-detection
+version: 0.1.0
+
+data:
+  nsl_kdd_train_url: "https://raw.githubusercontent.com/defcom17/NSL_KDD/master/KDDTrain+.txt"
+  nsl_kdd_test_url: "https://raw.githubusercontent.com/defcom17/NSL_KDD/master/KDDTest+.txt"
+  train_path: "data/KDDTrain+.txt"
+  test_path: "data/KDDTest+.txt"
+  use_synthetic_fallback: true
+  synthetic_n_train: 20000
+  synthetic_n_test: 5000
+  random_state: 42
+
+features:
+  categorical: ["protocol_type", "service", "flag"]
+  label_col: "label"
+  drop_cols: ["difficulty"]
+  binary_labels: false            # 5-class: normal / dos / probe / r2l / u2r
+
+model:
+  type: "random_forest"
+  n_estimators: 150
+  max_depth: 25
+  min_samples_split: 2
+  random_state: 42
+  n_jobs: -1
+  class_weight: "balanced_subsample"
+
+paths:
+  model_dir: "models"
+  model_file: "models/nids_rf_multiclass.joblib"
+  reports_dir: "reports/multiclass"
+
+detection:
+  alert_threshold: 0.70          # P(top class) at/above this raises an alert
+  batch_size: 10000
